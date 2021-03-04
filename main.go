@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"log"
 	"net/http"
 	"net/url"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
+	"github.com/smithsra/garagesale/schema"
 )
 
 func main() {
@@ -32,12 +34,31 @@ func main() {
 	}
 	defer db.Close()
 
+	flag.Parse()
+	switch flag.Arg(0) {
+
+	case "migrate":
+		if err := schema.Migrate(db); err != nil {
+			log.Fatal("applying migrations", err)
+		}
+		log.Println("migrations complete")
+		return
+	case "seed":
+		if err := schema.Seed(db); err != nil {
+			log.Fatal("applying seed data", err)
+		}
+		log.Println("Seed data inserted complete")
+		return
+	}
+
 	// =========================================================================
 	// Start API Service
 
+	ps := ProductService{db: db}
+
 	api := http.Server{
 		Addr:         "localhost:8000",
-		Handler:      http.HandlerFunc(ListProducts),
+		Handler:      http.HandlerFunc(ps.List),
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 5 * time.Second,
 	}
@@ -104,19 +125,32 @@ func openDB() (*sqlx.DB, error) {
 
 // Product struct to hold products
 type Product struct {
-	Name     string `json:"name"`
-	Cost     int    `json:"cost"`
-	Quantity int    `json:"quantity"`
+	ID          string    `db:"product_id" json:"id"`
+	Name        string    `db:"name" json:"name"`
+	Cost        int       `db:"cost" json:"cost"`
+	Quantity    int       `db:"quantity" json:"quantity"`
+	DateCreated time.Time `db:"date_created" json:"date_created"`
+	DateUpdated time.Time `db:"date_updated" json:"date_updated"`
+}
+
+// ProductService has handler methods for dealing with Products.
+type ProductService struct {
+	db *sqlx.DB
 }
 
 // ListProducts lists all products.
 // If you open localhost:8000 in your browser, you may notice
 // double requets being made. This happens because the browser
 // sends a request in the background for a website favicon.
-func ListProducts(w http.ResponseWriter, r *http.Request) {
-	list := []Product{
-		{Name: "Comic Books", Cost: 75, Quantity: 50},
-		{Name: "McDonalds Toys", Cost: 25, Quantity: 120},
+func (p *ProductService) List(w http.ResponseWriter, r *http.Request) {
+	list := []Product{}
+
+	const q = `SELECT product_id, name, cost, quantity, date_updated, date_created FROM products`
+
+	if err := p.db.Select(&list, q); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Println("error querying db", err)
+		return
 	}
 
 	data, err := json.Marshal(list)
