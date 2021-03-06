@@ -11,7 +11,8 @@ import (
 
 // Product has handler methods for dealing with Products.
 type Product struct {
-	DB *sqlx.DB
+	DB  *sqlx.DB
+	Log *log.Logger
 }
 
 // List lists all products.
@@ -19,17 +20,20 @@ type Product struct {
 // double requets being made. This happens because the browser
 // sends a request in the background for a website favicon.
 func (p *Product) List(w http.ResponseWriter, r *http.Request) {
+
+	p.Log.Println("testing")
+
 	list, err := product.List(p.DB)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		log.Println("error querying db", err)
+		p.Log.Println("error querying db", err)
 		return
 	}
 
 	data, err := json.Marshal(list)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		log.Println("error marshalling", err)
+		p.Log.Println("error marshalling", err)
 		return
 	}
 
@@ -37,6 +41,6 @@ func (p *Product) List(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 
 	if _, err := w.Write(data); err != nil {
-		log.Println("error writing", err)
+		p.Log.Println("error writing", err)
 	}
 }
