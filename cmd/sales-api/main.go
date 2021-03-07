@@ -85,11 +85,9 @@ func run() error {
 	// =========================================================================
 	// Start API Service
 
-	ps := handlers.Product{DB: db, Log: log}
-
 	api := http.Server{
 		Addr:         cfg.Web.Address,
-		Handler:      http.HandlerFunc(ps.List),
+		Handler:      handlers.API(log, db),
 		ReadTimeout:  cfg.Web.ReadTimeout,
 		WriteTimeout: cfg.Web.WriteTimeout,
 	}
